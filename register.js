@@ -19,7 +19,7 @@ document.getElementById('register-form').addEventListener('submit', function(eve
         password: javaLikeHashCode(password)
     };
 
-    fetch('/api/register', {
+    fetch(window.location.href + 'api/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)

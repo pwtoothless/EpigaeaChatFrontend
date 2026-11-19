@@ -22,9 +22,8 @@ document.getElementById('login-form').addEventListener('submit', function(event)
         username: javaLikeHashCode(username),
         password: javaLikeHashCode(password)
     };
-
-    // Updated to use the secure HTTPS domain
-    fetch('/login', {
+    console.log(window.location.href + 'api/login');
+    fetch(window.location.href + 'api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
@@ -190,7 +189,7 @@ function createPeerConnection(targetUser) {
 
 function establishWebSocket(username) {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    socket = new WebSocket(`${wsProtocol}//${window.location.host}/ws`);
+    socket = new WebSocket(`${wsProtocol}//172.0.0.1/api/wss`);
     const chatInput = document.getElementById('chat-input');
     const chatHistory = document.getElementById('chat-history');
     const userList = document.getElementById('user-list');
