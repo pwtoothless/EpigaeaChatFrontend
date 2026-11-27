@@ -21,6 +21,7 @@
                 <label for="password">Password</label>
                 <input type="password" id="password" name="password" autocomplete="current-password" autocorrect="off" autocapitalize="none" spellcheck="false" required>
             </div>
+            <div id="login-error" class="status-message error" style="display: none;"></div>
             <div style="text-align: center; margin-bottom: 1rem;">
                 <a href="register.html" style="color: #007bff; text-decoration: none;">Create an account</a>
             </div>
@@ -30,50 +31,144 @@
 
     <div class="app-wrapper" id="app-wrapper" style="display: none;">
         <div class="glass-container">
+            <!-- Far-left Discord-style Server Rail -->
+            <div class="server-rail">
+                <div id="server-list" class="server-list"></div>
+                <div class="rail-divider"></div>
+                <button type="button" id="open-create-server-btn" class="rail-btn" title="Create a New Server">+</button>
+                <button type="button" id="open-join-server-btn" class="rail-btn rail-btn-join" title="Join Server with Room Code">&#128279;</button>
+            </div>
+
+            <!-- Channels & Members Sidebar -->
             <div class="sidebar">
-                <h3>Connected Users</h3>
-                <ul id="user-list"></ul>
-                
-                <div class="voice-channels">
-                    <h3>Voice Channels</h3>
-                    <ul id="channel-list">
-                        <li onclick="joinVoiceChannel('General')">
-                            &#128266; General
-                            <div class="channel-users" id="voice-users-General"></div>
-                        </li>
-                        <li onclick="joinVoiceChannel('Gaming')">
-                            &#128266; Gaming
-                            <div class="channel-users" id="voice-users-Gaming"></div>
-                        </li>
-                    </ul>
+                <div class="server-header">
+                    <div class="server-title-row">
+                        <h3 id="current-server-name">Epigaea</h3>
+                        <span id="role-badge" class="role-badge" style="display: none;"></span>
+                    </div>
+                    <div id="invite-box" class="invite-box" style="display: none;">
+                        <span class="invite-label">Code: <strong id="invite-code-text"></strong></span>
+                        <div class="invite-actions">
+                            <button type="button" id="copy-invite-btn" class="mini-btn" title="Copy Room Code">Copy</button>
+                            <button type="button" id="regen-invite-btn" class="mini-btn" title="Regenerate Room Code">&#8635;</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="channel-section">
+                    <div class="section-header">
+                        <span>TEXT CHANNELS</span>
+                        <button type="button" id="add-text-channel-btn" class="icon-add-btn" title="Add Text Channel" style="display: none;">+</button>
+                    </div>
+                    <ul id="text-channel-list" class="channel-list"></ul>
+                </div>
+
+                <div class="channel-section voice-channels">
+                    <div class="section-header">
+                        <span>VOICE CHANNELS</span>
+                        <button type="button" id="add-voice-channel-btn" class="icon-add-btn" title="Add Voice Channel" style="display: none;">+</button>
+                    </div>
+                    <ul id="voice-channel-list" class="channel-list"></ul>
+                    <button type="button" id="leave-voice-btn" class="leave-voice-btn" style="display: none;" onclick="leaveVoiceChannel()">Disconnect Voice</button>
+                </div>
+
+                <div class="members-section">
+                    <div class="section-header">
+                        <span>MEMBERS</span>
+                    </div>
+                    <ul id="user-list"></ul>
                 </div>
             </div>
-            <div class="logo-blur">
-                <img src="/assets/Logo-Banner.png" alt="Epigaea Logo">
-            </div>
+
+            <!-- Main Chat Area -->
             <div class="chat-area">
+                <div class="chat-header">
+                    <div class="chat-header-title">
+                        <span class="channel-hash">#</span>
+                        <span id="current-channel-name">general</span>
+                    </div>
+                    <div class="chat-header-user">
+                        <span id="current-user-label"></span>
+                    </div>
+                </div>
                 <div class="chat-history" id="chat-history"></div>
                 <div class="input-area">
                     <input type="text" id="chat-input" placeholder="Type a message...">
+                    <button type="button" id="send-btn" class="send-btn">Send</button>
                 </div>
                 <div class="video-controls" style="padding: 10px; background: rgba(255,255,255,0.1); display: flex; gap: 10px;">
-                <button onclick="startCamera()">Turn on Camera</button>
-                <button onclick="startScreenShare()">Share Screen</button>
+                    <button type="button" onclick="startCamera()">Turn on Camera</button>
+                    <button type="button" onclick="startScreenShare()">Share Screen</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Create Server Modal -->
+        <div id="create-server-modal" class="modal-overlay" style="display: none;">
+            <div class="modal-card">
+                <h3>Create a Server</h3>
+                <form id="create-server-form">
+                    <div class="input-group">
+                        <label for="new-server-name">Server Name</label>
+                        <input type="text" id="new-server-name" maxlength="50" placeholder="My Awesome Server" required>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn-secondary" onclick="closeModals()">Cancel</button>
+                        <button type="submit">Create</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Join Server Modal -->
+        <div id="join-server-modal" class="modal-overlay" style="display: none;">
+            <div class="modal-card">
+                <h3>Join a Server</h3>
+                <form id="join-server-form">
+                    <div class="input-group">
+                        <label for="join-invite-code">Room Code</label>
+                        <input type="text" id="join-invite-code" maxlength="16" placeholder="e.g. A7K9P2M4" required>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn-secondary" onclick="closeModals()">Cancel</button>
+                        <button type="submit">Join Server</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Create Channel Modal -->
+        <div id="create-channel-modal" class="modal-overlay" style="display: none;">
+            <div class="modal-card">
+                <h3 id="create-channel-modal-title">Create Channel</h3>
+                <form id="create-channel-form">
+                    <input type="hidden" id="new-channel-type" value="TEXT">
+                    <div class="input-group">
+                        <label for="new-channel-name">Channel Name</label>
+                        <input type="text" id="new-channel-name" maxlength="32" placeholder="e.g. announcements" required>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn-secondary" onclick="closeModals()">Cancel</button>
+                        <button type="submit">Create Channel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Video Modal -->
+        <div id="video-modal" class="video-modal" style="display: none;">
+            <div class="video-modal-content glass-container">
+                <div class="video-header">
+                    <h3>Live Streams</h3>
+                    <button type="button" onclick="document.getElementById('video-modal').style.display='none'">Hide</button>
+                    <button type="button" id="toggle-video-view">Toggle View</button>
+                </div>
+                <div id="video-grid" class="video-grid"></div>
             </div>
         </div>
     </div>
-    <div id="video-modal" class="video-modal" style="display: none;">
-        <div class="video-modal-content glass-container">
-            <div class="video-header">
-                <h3>Live Streams</h3>
-                <button onclick="document.getElementById('video-modal').style.display='none'">Hide</button>
-                <button id="toggle-video-view">Toggle View</button>
-            </div>
-                <div id="video-grid" class="video-grid">
-            </div>
-        </div>
-    </div>
-    </div>
+
+    <div id="toast-banner" class="toast-banner" style="display: none;"></div>
     <script src="main.js"></script>
     <audio id="login-sound" src="assets/loginsound.mp3" preload="auto"></audio>
 </body>

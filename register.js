@@ -1,37 +1,49 @@
-function javaLikeHashCode(str) {
-    let hash = 0;
-    if (str.length === 0) return hash;
-    for (let i = 0; i < str.length; i++) {
-        hash = Math.imul(31, hash) + str.charCodeAt(i);
-        hash |= 0; 
+function getApiBase() {
+    const devPorts = ['3000', '3001', '4173', '5173', '5500', '8000', '8080'];
+    if (window.location.protocol === 'file:' || devPorts.includes(window.location.port)) {
+        const host = window.location.hostname || 'localhost';
+        return `http://${host}:8082`;
     }
-    return hash;
+    return '';
 }
 
-document.getElementById('register-form').addEventListener('submit', function(event) {
+document.getElementById('register-form').addEventListener('submit', async function (event) {
     event.preventDefault();
 
-    const username = document.getElementById('username').value;
+    const username = document.getElementById('username').value.trim();
     const password = document.getElementById('password').value;
+    const adminCode = document.getElementById('admin-code').value.trim();
+    const statusEl = document.getElementById('register-status');
 
-    const data = {
-        username: javaLikeHashCode(username),
-        password: javaLikeHashCode(password)
-    };
+    statusEl.style.display = 'none';
+    statusEl.className = 'status-message';
 
-    fetch(window.location.href + 'api/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
-    })
-    .then(response => response.json())
-    .then(data => {
+    try {
+        const response = await fetch(`${getApiBase()}/api/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password, adminCode })
+        });
+        const data = await response.json();
+
         if (data.success) {
-            alert('Account created! You can now log in.');
-            window.location.href = 'index.html'; // Send back to login normal
+            statusEl.textContent = data.isGlobalAdmin
+                ? 'Global Admin account created! Redirecting to login...'
+                : 'Account created! Redirecting to login...';
+            statusEl.classList.add('success');
+            statusEl.style.display = 'block';
+            setTimeout(() => {
+                window.location.href = 'index.html';
+            }, 900);
         } else {
-            alert('Registration failed: ' + data.message);
+            statusEl.textContent = data.message || 'Registration failed';
+            statusEl.classList.add('error');
+            statusEl.style.display = 'block';
         }
-    })
-    .catch(error => console.error('Error:', error));
+    } catch (error) {
+        console.error('Error:', error);
+        statusEl.textContent = 'Could not reach server.';
+        statusEl.classList.add('error');
+        statusEl.style.display = 'block';
+    }
 });
