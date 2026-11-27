@@ -166,8 +166,11 @@
             <div class="video-modal-content glass-container">
                 <div class="video-header">
                     <h3>Live Streams</h3>
-                    <button type="button" onclick="document.getElementById('video-modal').style.display='none'">Hide</button>
-                    <button type="button" id="toggle-video-view">Toggle View</button>
+                    <div class="video-header-actions">
+                        <button type="button" id="toggle-video-view">Toggle View</button>
+                        <button type="button" id="fullscreen-modal-btn" onclick="toggleElementFullscreen(document.querySelector('#video-modal .video-modal-content'))">Fullscreen</button>
+                        <button type="button" onclick="document.getElementById('video-modal').style.display='none'">Hide</button>
+                    </div>
                 </div>
                 <div id="video-grid" class="video-grid"></div>
             </div>

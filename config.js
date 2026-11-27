@@ -19,7 +19,7 @@ window.EpigaeaConfig = (function () {
         if (stored && stored.trim() !== '') {
             return stored.trim().replace(/\/+$/, '');
         }
-        if (isLocalHost || window.location.protocol === 'file:' || devPorts.includes(window.location.port)) {
+        if (isLocalHost || devPorts.includes(window.location.port)) {
             return '';
         }
         return (window.EPIGAEA_BACKEND_URL || '').trim().replace(/\/+$/, '');

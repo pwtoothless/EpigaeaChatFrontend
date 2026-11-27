@@ -1,0 +1,53 @@
+{
+  "name": "epigaea-chat",
+  "version": "1.0.0",
+  "description": "Epigaea Discord-style chat, voice, and screen-share desktop client",
+  "main": "electron-main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --publish never"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "us.mayflowerparadise.epigaea",
+    "productName": "Epigaea",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "index.html",
+      "register.html",
+      "main.js",
+      "register.js",
+      "config.js",
+      "style.css",
+      "electron-main.js",
+      "assets/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "assets/favicon.png"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "icon": "assets/favicon.png",
+      "category": "Network"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "assets/favicon.png",
+      "category": "public.app-category.social-networking"
+    }
+  }
+}

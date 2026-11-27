@@ -101,19 +101,64 @@ document.getElementById('login-form').addEventListener('submit', async function 
 
 // --- WebRTC Media Controls ---
 
+function toggleElementFullscreen(el) {
+    if (!el) return;
+    if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+    } else if (el.requestFullscreen) {
+        el.requestFullscreen().catch(err => console.warn('Fullscreen failed:', err));
+    }
+}
+
+function getOrCreateVideoTile(videoId, labelText, isMuted = false) {
+    let videoEl = document.getElementById(videoId);
+    if (videoEl) return videoEl;
+
+    const tile = document.createElement('div');
+    tile.className = 'video-tile';
+    tile.id = 'tile-' + videoId;
+
+    videoEl = document.createElement('video');
+    videoEl.id = videoId;
+    videoEl.autoplay = true;
+    videoEl.playsInline = true;
+    videoEl.muted = isMuted;
+    videoEl.addEventListener('dblclick', () => toggleElementFullscreen(tile));
+
+    const overlay = document.createElement('div');
+    overlay.className = 'video-tile-overlay';
+
+    const label = document.createElement('span');
+    label.className = 'video-tile-label';
+    label.textContent = labelText;
+
+    const fsBtn = document.createElement('button');
+    fsBtn.type = 'button';
+    fsBtn.className = 'video-fullscreen-btn';
+    fsBtn.title = 'Toggle Fullscreen';
+    fsBtn.textContent = '\u26F6 Fullscreen';
+    fsBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleElementFullscreen(tile);
+    });
+
+    overlay.appendChild(label);
+    overlay.appendChild(fsBtn);
+    tile.appendChild(videoEl);
+    tile.appendChild(overlay);
+
+    document.getElementById('video-modal').style.display = 'flex';
+    document.getElementById('video-grid').appendChild(tile);
+    return videoEl;
+}
+
 async function addStreamToPeers(newStream) {
     document.getElementById('video-modal').style.display = 'flex';
     const videoTrack = newStream.getVideoTracks()[0];
     if (!videoTrack) return;
 
-    let localVideo = document.getElementById('local-video');
-    if (!localVideo) {
-        localVideo = document.createElement('video');
-        localVideo.id = 'local-video';
-        localVideo.autoplay = true;
-        localVideo.muted = true;
-        document.getElementById('video-grid').appendChild(localVideo);
-    }
+    const localLabel = appState.user ? `${appState.user.username} (You)` : 'You';
+    const localVideo = getOrCreateVideoTile('local-video', localLabel, true);
     localVideo.srcObject = new MediaStream([videoTrack]);
 
     if (localStream) {
@@ -252,8 +297,13 @@ function cleanupPeer(targetUser) {
 
     const audioEl = document.getElementById('audio-' + targetUser);
     if (audioEl) audioEl.remove();
-    const videoEl = document.getElementById('video-' + targetUser);
-    if (videoEl) videoEl.remove();
+    const videoTile = document.getElementById('tile-video-' + targetUser);
+    if (videoTile) {
+        videoTile.remove();
+    } else {
+        const videoEl = document.getElementById('video-' + targetUser);
+        if (videoEl) videoEl.remove();
+    }
 }
 
 function joinVoiceChannel(channelId) {
@@ -392,15 +442,7 @@ function createPeerConnection(targetUser, isInitiator = false) {
             audioEl.play().catch(err => console.warn('Remote audio play blocked:', err));
             startAudioActivityMonitor(targetUser, incomingStream, targetUser);
         } else if (track.kind === 'video') {
-            let videoEl = document.getElementById('video-' + targetUser);
-            if (!videoEl) {
-                videoEl = document.createElement('video');
-                videoEl.id = 'video-' + targetUser;
-                videoEl.autoplay = true;
-                videoEl.playsInline = true;
-                document.getElementById('video-modal').style.display = 'flex';
-                document.getElementById('video-grid').appendChild(videoEl);
-            }
+            const videoEl = getOrCreateVideoTile('video-' + targetUser, targetUser, false);
             videoEl.srcObject = incomingStream;
         }
     };
