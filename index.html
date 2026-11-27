@@ -73,7 +73,12 @@
                         <span id="local-mic-wave" class="voice-wave-icon" title="Microphone voice activity">
                             <span></span><span></span><span></span>
                         </span>
-                        <span id="mic-status-label">Voice Connected</span>
+                        <span id="mic-status-label" class="mic-status-label">Voice Connected</span>
+                        <div class="voice-quick-actions">
+                            <button type="button" id="mute-mic-btn" class="voice-mini-btn" title="Mute Microphone" onclick="EpigaeaVoice.toggleMute()">&#127908;</button>
+                            <button type="button" id="deafen-btn" class="voice-mini-btn" title="Deafen" onclick="EpigaeaVoice.toggleDeafen()">&#127911;</button>
+                            <button type="button" id="voice-settings-btn" class="voice-mini-btn" title="Voice & Mic Settings" onclick="EpigaeaVoice.openSettingsModal()">&#9881;</button>
+                        </div>
                     </div>
                     <button type="button" id="leave-voice-btn" class="leave-voice-btn" style="display: none;" onclick="leaveVoiceChannel()">Disconnect Voice</button>
                 </div>
@@ -105,6 +110,7 @@
                 <div class="video-controls" style="padding: 10px; background: rgba(255,255,255,0.1); display: flex; gap: 10px;">
                     <button type="button" onclick="startCamera()">Turn on Camera</button>
                     <button type="button" onclick="startScreenShare()">Share Screen</button>
+                    <button type="button" onclick="EpigaeaVoice.openSettingsModal()">Mic &amp; Voice Settings</button>
                 </div>
             </div>
         </div>
@@ -161,6 +167,85 @@
             </div>
         </div>
 
+        <!-- Voice & Microphone Settings Modal -->
+        <div id="voice-settings-modal" class="modal-overlay" style="display: none;">
+            <div class="modal-card voice-settings-card">
+                <h3>Voice &amp; Microphone Settings</h3>
+                <div class="voice-settings-body">
+                    <div class="input-group">
+                        <label for="mic-device-select">Input Device (Microphone)</label>
+                        <select id="mic-device-select"></select>
+                    </div>
+                    <div class="input-group">
+                        <label for="speaker-device-select">Output Device (Speakers / Headphones)</label>
+                        <select id="speaker-device-select"></select>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Live Mic Input Level</label>
+                        <div class="mic-level-track"><div id="mic-level-fill" class="mic-level-fill"></div></div>
+                    </div>
+
+                    <div class="slider-group">
+                        <div class="slider-header">
+                            <label for="opt-gain">Input Gain (Volume)</label>
+                            <span id="opt-gain-val">100%</span>
+                        </div>
+                        <input type="range" id="opt-gain" min="0" max="200" value="100">
+                    </div>
+
+                    <div class="slider-group">
+                        <div class="slider-header">
+                            <label for="opt-gate">Noise Gate / Input Sensitivity</label>
+                            <span id="opt-gate-val">8</span>
+                        </div>
+                        <input type="range" id="opt-gate" min="0" max="50" value="8">
+                    </div>
+
+                    <div class="toggle-grid">
+                        <label class="toggle-row"><input type="checkbox" id="opt-noise-suppression"> Noise Suppression</label>
+                        <label class="toggle-row"><input type="checkbox" id="opt-echo-cancellation"> Echo Cancellation</label>
+                        <label class="toggle-row"><input type="checkbox" id="opt-auto-gain"> Auto Gain Control</label>
+                        <label class="toggle-row"><input type="checkbox" id="opt-high-pass"> High-Pass Filter (90Hz)</label>
+                        <label class="toggle-row"><input type="checkbox" id="opt-compressor"> Voice Compressor</label>
+                    </div>
+
+                    <div class="autotune-box">
+                        <label class="toggle-row" style="font-weight: 700;"><input type="checkbox" id="opt-autotune"> Enable Auto-Tune / Pitch FX</label>
+                        <div class="input-group" style="margin-top: 8px;">
+                            <label for="opt-autotune-scale">Scale / Mode</label>
+                            <select id="opt-autotune-scale">
+                                <option value="chromatic">Chromatic (All Notes)</option>
+                                <option value="major_c">C Major</option>
+                                <option value="minor_a">A Minor</option>
+                                <option value="major_g">G Major</option>
+                                <option value="robot">Robot / Monotone</option>
+                            </select>
+                        </div>
+                        <div class="slider-group">
+                            <div class="slider-header">
+                                <label for="opt-pitch-shift">Pitch Shift</label>
+                                <span id="opt-pitch-shift-val">0 st</span>
+                            </div>
+                            <input type="range" id="opt-pitch-shift" min="-12" max="12" value="0">
+                        </div>
+                        <div class="slider-group">
+                            <div class="slider-header">
+                                <label for="opt-retune-speed">Retune Speed</label>
+                                <span id="opt-retune-speed-val">85%</span>
+                            </div>
+                            <input type="range" id="opt-retune-speed" min="10" max="100" value="85">
+                        </div>
+                    </div>
+
+                    <button type="button" id="mic-test-btn" class="btn-secondary" style="margin-top: 6px;">Let's Check (Test Mic)</button>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" onclick="EpigaeaVoice.closeSettingsModal()">Done</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Video Modal -->
         <div id="video-modal" class="video-modal" style="display: none;">
             <div class="video-modal-content glass-container">
@@ -179,6 +264,7 @@
 
     <div id="toast-banner" class="toast-banner" style="display: none;"></div>
     <script src="config.js"></script>
+    <script src="voice-controls.js"></script>
     <script src="main.js"></script>
     <audio id="login-sound" src="assets/loginsound.mp3" preload="auto"></audio>
 </body>

@@ -320,19 +320,17 @@ function joinVoiceChannel(channelId) {
     const voiceStatusBar = document.getElementById('voice-status-bar');
     const micLabel = document.getElementById('mic-status-label');
 
-    navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-        video: false
+    EpigaeaVoice.acquireMicrophone((isSpeaking) => {
+        if (appState.user) {
+            setUserSpeakingState(appState.user.username, isSpeaking);
+        }
     })
         .then(stream => {
             localStream = stream;
             appState.activeVoiceChannelId = channelId;
             document.getElementById('leave-voice-btn').style.display = 'block';
             if (voiceStatusBar) voiceStatusBar.style.display = 'flex';
-            if (micLabel) micLabel.textContent = 'Mic Ready';
-            if (appState.user) {
-                startAudioActivityMonitor('__local__', stream, appState.user.username);
-            }
+            if (micLabel) micLabel.textContent = EpigaeaVoice.isMuted() ? 'Muted' : 'Mic Ready';
             socket.send(JSON.stringify({ type: 'join-voice', channelId }));
         })
         .catch(() => {
@@ -354,6 +352,7 @@ function leaveVoiceChannel() {
     const voiceStatusBar = document.getElementById('voice-status-bar');
     if (voiceStatusBar) voiceStatusBar.style.display = 'none';
     stopAudioMonitor('__local__');
+    EpigaeaVoice.releaseMicrophone();
 
     for (const user of Object.keys(peerConnections)) {
         cleanupPeer(user);
@@ -439,6 +438,7 @@ function createPeerConnection(targetUser, isInitiator = false) {
                 document.body.appendChild(audioEl);
             }
             audioEl.srcObject = incomingStream;
+            EpigaeaVoice.applyOutputDeviceToElement(audioEl);
             audioEl.play().catch(err => console.warn('Remote audio play blocked:', err));
             startAudioActivityMonitor(targetUser, incomingStream, targetUser);
         } else if (track.kind === 'video') {
@@ -930,3 +930,5 @@ document.getElementById('toggle-video-view').addEventListener('click', () => {
     const videoGrid = document.getElementById('video-grid');
     videoGrid.style.display = videoGrid.style.display === 'none' ? 'grid' : 'none';
 });
+
+EpigaeaVoice.initSettingsUi(() => peerConnections);

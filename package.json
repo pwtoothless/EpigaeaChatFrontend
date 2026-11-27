@@ -1,6 +1,6 @@
 {
   "name": "epigaea-chat",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "pwtoothless",
   "description": "Epigaea Discord-style chat, voice, and screen-share desktop client",
   "main": "electron-main.js",
@@ -24,6 +24,7 @@
       "main.js",
       "register.js",
       "config.js",
+      "voice-controls.js",
       "style.css",
       "electron-main.js",
       "assets/**/*"
