@@ -1,10 +1,5 @@
 function getApiBase() {
-    const devPorts = ['3000', '3001', '4173', '5173', '5500', '8000', '8080'];
-    if (window.location.protocol === 'file:' || devPorts.includes(window.location.port)) {
-        const host = window.location.hostname || 'localhost';
-        return `http://${host}:8082`;
-    }
-    return '';
+    return window.EpigaeaConfig.getApiBase();
 }
 
 document.getElementById('register-form').addEventListener('submit', async function (event) {

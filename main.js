@@ -16,22 +16,11 @@ const appState = {
 };
 
 function getApiBase() {
-    const devPorts = ['3000', '3001', '4173', '5173', '5500', '8000', '8080'];
-    if (window.location.protocol === 'file:' || devPorts.includes(window.location.port)) {
-        const host = window.location.hostname || 'localhost';
-        return `http://${host}:8082`;
-    }
-    return '';
+    return window.EpigaeaConfig.getApiBase();
 }
 
 function getWsUrl() {
-    const devPorts = ['3000', '3001', '4173', '5173', '5500', '8000', '8080'];
-    if (window.location.protocol === 'file:' || devPorts.includes(window.location.port)) {
-        const host = window.location.hostname || 'localhost';
-        return `ws://${host}:8081`;
-    }
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${wsProtocol}//${window.location.host}/api/wss`;
+    return window.EpigaeaConfig.getWsUrl();
 }
 
 function showToast(message, isError = false) {
