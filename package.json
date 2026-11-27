@@ -1,6 +1,7 @@
 {
   "name": "epigaea-chat",
   "version": "1.0.0",
+  "author": "pwtoothless",
   "description": "Epigaea Discord-style chat, voice, and screen-share desktop client",
   "main": "electron-main.js",
   "scripts": {
@@ -31,14 +32,12 @@
       "target": [
         "nsis",
         "portable"
-      ],
-      "icon": "assets/favicon.png"
+      ]
     },
     "linux": {
       "target": [
         "AppImage"
       ],
-      "icon": "assets/favicon.png",
       "category": "Network"
     },
     "mac": {
@@ -46,7 +45,6 @@
         "dmg",
         "zip"
       ],
-      "icon": "assets/favicon.png",
       "category": "public.app-category.social-networking"
     }
   }
