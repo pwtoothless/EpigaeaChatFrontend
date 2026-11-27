@@ -1,5 +1,10 @@
 let localStream = null;
 const peerConnections = {};
+const pendingIceCandidates = {};
+const makingOffer = {};
+const audioMonitors = {};
+const speakingUsers = new Set();
+let sharedAudioContext = null;
 let socket = null;
 
 const appState = {
@@ -150,19 +155,142 @@ async function startScreenShare() {
     }
 }
 
+function getAudioContext() {
+    if (!sharedAudioContext) {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) sharedAudioContext = new AudioCtx();
+    }
+    if (sharedAudioContext && sharedAudioContext.state === 'suspended') {
+        sharedAudioContext.resume().catch(() => {});
+    }
+    return sharedAudioContext;
+}
+
+function setUserSpeakingState(username, isSpeaking) {
+    if (!username) return;
+    if (isSpeaking) speakingUsers.add(username);
+    else speakingUsers.delete(username);
+
+    const participantEls = document.querySelectorAll(`.voice-participant[data-voice-user="${CSS.escape(username)}"]`);
+    participantEls.forEach(el => {
+        el.classList.toggle('speaking', isSpeaking);
+        const icon = el.querySelector('.voice-wave-icon');
+        if (icon) icon.classList.toggle('speaking', isSpeaking);
+    });
+
+    if (appState.user && username === appState.user.username) {
+        const localWave = document.getElementById('local-mic-wave');
+        const label = document.getElementById('mic-status-label');
+        if (localWave) localWave.classList.toggle('speaking', isSpeaking);
+        if (label && appState.activeVoiceChannelId) {
+            label.textContent = isSpeaking ? 'Speaking (Mic Heard)' : 'Mic Ready';
+        }
+    }
+}
+
+function stopAudioMonitor(key) {
+    const mon = audioMonitors[key];
+    if (!mon) return;
+    clearInterval(mon.timer);
+    try { mon.source.disconnect(); } catch (_) {}
+    delete audioMonitors[key];
+    if (key === '__local__' && appState.user) {
+        setUserSpeakingState(appState.user.username, false);
+    } else {
+        setUserSpeakingState(key, false);
+    }
+}
+
+function startAudioActivityMonitor(key, stream, usernameForUi) {
+    stopAudioMonitor(key);
+    if (!stream || stream.getAudioTracks().length === 0) return;
+
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    try {
+        const source = ctx.createMediaStreamSource(stream);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 512;
+        analyser.smoothingTimeConstant = 0.4;
+        source.connect(analyser);
+
+        const data = new Uint8Array(analyser.frequencyBinCount);
+        let lastSpeaking = false;
+        let holdUntil = 0;
+
+        const timer = setInterval(() => {
+            analyser.getByteFrequencyData(data);
+            let sum = 0;
+            for (let i = 0; i < data.length; i++) sum += data[i];
+            const avg = sum / data.length;
+            const now = Date.now();
+            if (avg > 10) {
+                holdUntil = now + 260;
+            }
+            const isSpeaking = now < holdUntil;
+            if (isSpeaking !== lastSpeaking) {
+                lastSpeaking = isSpeaking;
+                setUserSpeakingState(usernameForUi, isSpeaking);
+            }
+        }, 70);
+
+        audioMonitors[key] = { source, analyser, timer };
+    } catch (e) {
+        console.warn('Could not start audio monitor:', e);
+    }
+}
+
+function cleanupPeer(targetUser) {
+    if (peerConnections[targetUser]) {
+        peerConnections[targetUser].close();
+        delete peerConnections[targetUser];
+    }
+    delete pendingIceCandidates[targetUser];
+    delete makingOffer[targetUser];
+    stopAudioMonitor(targetUser);
+
+    const audioEl = document.getElementById('audio-' + targetUser);
+    if (audioEl) audioEl.remove();
+    const videoEl = document.getElementById('video-' + targetUser);
+    if (videoEl) videoEl.remove();
+}
+
 function joinVoiceChannel(channelId) {
     if (!socket || socket.readyState !== WebSocket.OPEN) return;
-    navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+    if (appState.activeVoiceChannelId === channelId) return;
+
+    // Clean up any previous voice session cleanly
+    if (appState.activeVoiceChannelId !== null) {
+        leaveVoiceChannel();
+    }
+
+    getAudioContext();
+
+    const voiceStatusBar = document.getElementById('voice-status-bar');
+    const micLabel = document.getElementById('mic-status-label');
+
+    navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        video: false
+    })
         .then(stream => {
             localStream = stream;
             appState.activeVoiceChannelId = channelId;
             document.getElementById('leave-voice-btn').style.display = 'block';
+            if (voiceStatusBar) voiceStatusBar.style.display = 'flex';
+            if (micLabel) micLabel.textContent = 'Mic Ready';
+            if (appState.user) {
+                startAudioActivityMonitor('__local__', stream, appState.user.username);
+            }
             socket.send(JSON.stringify({ type: 'join-voice', channelId }));
         })
         .catch(() => {
             // Allow joining voice presence even without microphone in headless/test environments
             appState.activeVoiceChannelId = channelId;
             document.getElementById('leave-voice-btn').style.display = 'block';
+            if (voiceStatusBar) voiceStatusBar.style.display = 'flex';
+            if (micLabel) micLabel.textContent = 'Listen Only (No Mic)';
             socket.send(JSON.stringify({ type: 'join-voice', channelId }));
         });
 }
@@ -173,9 +301,12 @@ function leaveVoiceChannel() {
     }
     appState.activeVoiceChannelId = null;
     document.getElementById('leave-voice-btn').style.display = 'none';
-    for (const [user, peer] of Object.entries(peerConnections)) {
-        peer.close();
-        delete peerConnections[user];
+    const voiceStatusBar = document.getElementById('voice-status-bar');
+    if (voiceStatusBar) voiceStatusBar.style.display = 'none';
+    stopAudioMonitor('__local__');
+
+    for (const user of Object.keys(peerConnections)) {
+        cleanupPeer(user);
     }
     if (localStream) {
         localStream.getTracks().forEach(t => t.stop());
@@ -183,21 +314,59 @@ function leaveVoiceChannel() {
     }
 }
 
-function createPeerConnection(targetUser) {
-    const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+async function sendOfferToPeer(targetUser, peer) {
+    if (!peer || makingOffer[targetUser] || peer.signalingState !== 'stable') return;
+    try {
+        makingOffer[targetUser] = true;
+        const offer = await peer.createOffer();
+        await peer.setLocalDescription(offer);
+        socket.send(JSON.stringify({ type: 'webrtc-offer', target: targetUser, offer: peer.localDescription }));
+    } catch (e) {
+        console.error('Error creating WebRTC offer:', e);
+    } finally {
+        makingOffer[targetUser] = false;
+    }
+}
+
+async function flushIceCandidates(targetUser, peer) {
+    const queue = pendingIceCandidates[targetUser];
+    if (!queue || queue.length === 0 || !peer.remoteDescription) return;
+    while (queue.length > 0) {
+        const candidate = queue.shift();
+        try {
+            await peer.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (e) {
+            console.warn('Failed adding queued ICE candidate:', e);
+        }
+    }
+}
+
+function createPeerConnection(targetUser, isInitiator = false) {
+    if (peerConnections[targetUser]) {
+        cleanupPeer(targetUser);
+    }
+
+    const rtcConfig = {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' }
+        ]
+    };
     const peer = new RTCPeerConnection(rtcConfig);
+    pendingIceCandidates[targetUser] = [];
 
     if (localStream) {
         localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
     }
 
+    // Ensure audio transceiver exists even if this user joined listen-only (no mic)
+    const hasAudioSender = peer.getSenders().some(s => s.track && s.track.kind === 'audio');
+    if (!hasAudioSender && isInitiator) {
+        peer.addTransceiver('audio', { direction: 'recvonly' });
+    }
+
     peer.onnegotiationneeded = async () => {
-        try {
-            if (peer.signalingState !== 'stable') return;
-            const offer = await peer.createOffer();
-            await peer.setLocalDescription(offer);
-            socket.send(JSON.stringify({ type: 'webrtc-offer', target: targetUser, offer: peer.localDescription }));
-        } catch (e) { console.error(e); }
+        await sendOfferToPeer(targetUser, peer);
     };
 
     peer.onicecandidate = (event) => {
@@ -208,29 +377,40 @@ function createPeerConnection(targetUser) {
 
     peer.ontrack = (event) => {
         const track = event.track;
+        const incomingStream = (event.streams && event.streams[0]) ? event.streams[0] : new MediaStream([track]);
+
         if (track.kind === 'audio') {
             let audioEl = document.getElementById('audio-' + targetUser);
             if (!audioEl) {
                 audioEl = document.createElement('audio');
                 audioEl.id = 'audio-' + targetUser;
                 audioEl.autoplay = true;
+                audioEl.playsInline = true;
                 document.body.appendChild(audioEl);
             }
-            if (!audioEl.srcObject) audioEl.srcObject = new MediaStream([track]);
+            audioEl.srcObject = incomingStream;
+            audioEl.play().catch(err => console.warn('Remote audio play blocked:', err));
+            startAudioActivityMonitor(targetUser, incomingStream, targetUser);
         } else if (track.kind === 'video') {
             let videoEl = document.getElementById('video-' + targetUser);
             if (!videoEl) {
                 videoEl = document.createElement('video');
                 videoEl.id = 'video-' + targetUser;
                 videoEl.autoplay = true;
+                videoEl.playsInline = true;
                 document.getElementById('video-modal').style.display = 'flex';
                 document.getElementById('video-grid').appendChild(videoEl);
             }
-            if (!videoEl.srcObject) videoEl.srcObject = new MediaStream([track]);
+            videoEl.srcObject = incomingStream;
         }
     };
 
     peerConnections[targetUser] = peer;
+
+    if (isInitiator) {
+        sendOfferToPeer(targetUser, peer);
+    }
+
     return peer;
 }
 
@@ -368,9 +548,23 @@ function renderSidebar() {
         const usersDiv = document.createElement('div');
         usersDiv.className = 'channel-users';
         const participants = appState.voiceChannels[String(ch.id)] || [];
-        if (participants.length > 0) {
-            usersDiv.textContent = participants.join(', ');
-        }
+        participants.forEach(pUser => {
+            const pRow = document.createElement('div');
+            const isSpeaking = speakingUsers.has(pUser);
+            pRow.className = 'voice-participant' + (isSpeaking ? ' speaking' : '');
+            pRow.dataset.voiceUser = pUser;
+
+            const waveIcon = document.createElement('span');
+            waveIcon.className = 'voice-wave-icon' + (isSpeaking ? ' speaking' : '');
+            waveIcon.innerHTML = '<span></span><span></span><span></span>';
+            pRow.appendChild(waveIcon);
+
+            const nameEl = document.createElement('span');
+            nameEl.textContent = pUser;
+            pRow.appendChild(nameEl);
+
+            usersDiv.appendChild(pRow);
+        });
 
         li.appendChild(row);
         li.appendChild(usersDiv);
@@ -575,25 +769,36 @@ function establishWebSocket(token) {
             } else if (data.type === 'error') {
                 showToast(data.message || 'Action failed', true);
             } else if (data.type === 'user-joined-voice') {
-                createPeerConnection(data.username);
+                createPeerConnection(data.username, true);
             } else if (data.type === 'user-left-voice') {
-                if (peerConnections[data.username]) {
-                    peerConnections[data.username].close();
-                    delete peerConnections[data.username];
-                }
+                cleanupPeer(data.username);
             } else if (data.type === 'webrtc-offer') {
                 let peer = peerConnections[data.sender];
-                if (!peer) peer = createPeerConnection(data.sender);
+                if (!peer) peer = createPeerConnection(data.sender, false);
+
+                if (makingOffer[data.sender] || peer.signalingState !== 'stable') {
+                    await peer.setLocalDescription({ type: 'rollback' });
+                }
                 await peer.setRemoteDescription(new RTCSessionDescription(data.offer));
+                await flushIceCandidates(data.sender, peer);
+
                 const answer = await peer.createAnswer();
                 await peer.setLocalDescription(answer);
                 socket.send(JSON.stringify({ type: 'webrtc-answer', target: data.sender, answer: peer.localDescription }));
             } else if (data.type === 'webrtc-answer') {
                 const peer = peerConnections[data.sender];
-                if (peer) await peer.setRemoteDescription(new RTCSessionDescription(data.answer));
+                if (peer) {
+                    await peer.setRemoteDescription(new RTCSessionDescription(data.answer));
+                    await flushIceCandidates(data.sender, peer);
+                }
             } else if (data.type === 'webrtc-ice') {
                 const peer = peerConnections[data.sender];
-                if (peer) await peer.addIceCandidate(new RTCIceCandidate(data.candidate));
+                if (peer && peer.remoteDescription) {
+                    await peer.addIceCandidate(new RTCIceCandidate(data.candidate));
+                } else {
+                    if (!pendingIceCandidates[data.sender]) pendingIceCandidates[data.sender] = [];
+                    pendingIceCandidates[data.sender].push(data.candidate);
+                }
             }
         } catch (e) {
             console.error('Error processing message:', e);

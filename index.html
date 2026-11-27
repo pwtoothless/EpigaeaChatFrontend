@@ -69,6 +69,12 @@
                         <button type="button" id="add-voice-channel-btn" class="icon-add-btn" title="Add Voice Channel" style="display: none;">+</button>
                     </div>
                     <ul id="voice-channel-list" class="channel-list"></ul>
+                    <div id="voice-status-bar" class="voice-status-bar" style="display: none;">
+                        <span id="local-mic-wave" class="voice-wave-icon" title="Microphone voice activity">
+                            <span></span><span></span><span></span>
+                        </span>
+                        <span id="mic-status-label">Voice Connected</span>
+                    </div>
                     <button type="button" id="leave-voice-btn" class="leave-voice-btn" style="display: none;" onclick="leaveVoiceChannel()">Disconnect Voice</button>
                 </div>
 
